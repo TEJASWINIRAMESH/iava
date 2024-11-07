@@ -1,0 +1,8 @@
+1-7.py     : basic exercise
+8-11.py    : Implementation of different filters for edge detection.
+12-13.py   : Implementation of different filters for image smoothening.
+optic.py
+yono.py
+temp.py
+face.py
+pca.py
