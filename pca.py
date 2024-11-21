@@ -1,88 +1,87 @@
 import cv2
 import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.neighbors import KNeighborsClassifier
 import os
-from google.colab.patches import cv2_imshow
+import matplotlib.pyplot as plt
 
+# Function to load and preprocess dataset
+def load_dataset(dataset_path):
+    images = []
+    labels = []
+    label_map = {}
+    label_counter = 0
 
-# import cv2
+    for folder_name in os.listdir(dataset_path):
+        folder_path = os.path.join(dataset_path, folder_name)
+        if os.path.isdir(folder_path):  # Ensure it's a folder
+            if folder_name not in label_map:
+                label_map[folder_name] = label_counter
+                label_counter += 1
 
-# # Path to the image file
-# frame = r"C:\Users\PC\Downloads\images.jpeg"
+            for image_name in os.listdir(folder_path):
+                image_path = os.path.join(folder_path, image_name)
+                image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+                if image is not None:  # Skip invalid images
+                    image = cv2.resize(image, (100, 100))  # Uniform size
+                    images.append(image.flatten())
+                    labels.append(label_map[folder_name])
 
-# # Read the image
-# image = cv2.imread(frame)
+    return np.array(images), np.array(labels), label_map
 
-# # Display the image
-# cv2.imshow("Image", image)
-# Path to the dataset
-dataset_path = '/content/drive/MyDrive/archive'
+# Path to your labeled dataset
+dataset_path = r"C:\Users\Gowsika\Downloads\pca\labels\lfw-deepfunneled\lfw-deepfunneled"
 
-# Initialize variables
-images = []
-labels = []
-label_dict = {}
-current_label = 0
+# Load the dataset
+images, labels, label_map = load_dataset(dataset_path)
 
-# Load images and labels
-for person_name in os.listdir(dataset_path):
-    person_folder = os.path.join(dataset_path, person_name)
-    if not os.path.isdir(person_folder):
-        continue
+# Apply PCA
+num_components = 100  # Number of principal components
+pca = PCA(n_components=num_components, whiten=True)
+images_pca = pca.fit_transform(images)
 
-    # Assign a label for each person
-    label_dict[current_label] = person_name
-    for image_name in os.listdir(person_folder):
-        image_path = os.path.join(person_folder, image_name)
-        img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-        if img is None:
-            continue
-        img = cv2.resize(img, (200, 200))  # Resize to a consistent size
-        images.append(img)
-        labels.append(current_label)
+# Train a KNN classifier
+knn = KNeighborsClassifier(n_neighbors=3)
+knn.fit(images_pca, labels)
 
-    current_label += 1
+# Initialize video capture
+video_capture = cv2.VideoCapture(r"C:\Users\Gowsika\Downloads\pca\inner\8762656-uhd_3840_2160_25fps (1).mp4")
 
-# Check if images were loaded
-if not images or not labels:
-    print("No images or labels found in the dataset.")
-    exit()
+# Load Haar Cascade for face detection
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
-# Convert to numpy arrays
-images = np.array(images)
-labels = np.array(labels)
-
-# Create the EigenFace Recognizer model
-face_recognizer = cv2.face.EigenFaceRecognizer_create()
-
-# Train the recognizer on the dataset
-face_recognizer.train(images, labels)
-
-# Start capturing video
-cap = cv2.VideoCapture("/content/drive/MyDrive/210574_tiny.mp4")
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+print("Press 'q' to exit.")
 
 while True:
-    ret, frame = cap.read()
+    ret, frame = video_capture.read()
     if not ret:
         break
 
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 
     for (x, y, w, h) in faces:
-        face_img = gray[y:y+h, x:x+w]
-        face_img_resized = cv2.resize(face_img, (200, 200))  # Resize to match training data
+        face = gray_frame[y:y+h, x:x+w]
+        face_resized = cv2.resize(face, (100, 100)).flatten().reshape(1, -1)
+        face_pca = pca.transform(face_resized)
 
-        # Predict the label
-        label, confidence = face_recognizer.predict(face_img_resized)
-        name = label_dict.get(label, "Unknown")
-        cv2.putText(frame, f"{name} ({int(confidence)})", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        prediction = knn.predict(face_pca)
+        predicted_label = list(label_map.keys())[list(label_map.values()).index(prediction[0])]
+
+        # Draw rectangle and label
         cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        cv2.putText(frame, predicted_label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
 
-    cv2_imshow(frame)
+    # Convert BGR (OpenCV format) to RGB (Matplotlib format)
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    # Display using Matplotlib
+    plt.imshow(rgb_frame)
+    plt.axis('off')  # Hide axes for clarity
+    plt.show()
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-cap.release()
-cv2.destroyAllWindows()
+# Release resources
+video_capture.release()
