@@ -166,3 +166,87 @@ plt.imshow(median_filtered, cmap='gray')
 
 plt.tight_layout()
 plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+# --------------------------- with perforance--------------------------------
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load the image (original clean image)
+image = cv2.imread(r'C:\Users\PC\Desktop\Bkup\Desktop\semester 7\yolo\images\train\images.jpg', cv2.IMREAD_GRAYSCALE)
+
+# Add Gaussian noise
+noise = np.random.normal(0, 25, image.shape)  # Mean = 0, Stddev = 25
+noisy_image = np.uint8(np.clip(image + noise, 0, 255))
+
+# Apply Averaging filter
+average_filtered = cv2.blur(noisy_image, (5, 5))
+
+# Apply Gaussian filter
+gaussian_filtered = cv2.GaussianBlur(noisy_image, (5, 5), 1)
+
+# Apply Median filter
+median_filtered = cv2.medianBlur(noisy_image, 5)
+
+# Function to calculate the NSR (Noise-to-Signal Ratio)
+def calculate_nsr(original_image, noisy_image, filtered_image):
+    # Noise = filtered image - original image
+    noise = np.abs(filtered_image - original_image).astype(np.float32)
+    # Signal = original image
+    signal = original_image.astype(np.float32)
+
+    # Calculate variances
+    noise_variance = np.var(noise)
+    signal_variance = np.var(signal)
+    
+    # NSR formula
+    nsr = noise_variance / signal_variance
+    return nsr
+
+# Calculate NSR for each filter
+nsr_average = calculate_nsr(image, noisy_image, average_filtered)
+nsr_gaussian = calculate_nsr(image, noisy_image, gaussian_filtered)
+nsr_median = calculate_nsr(image, noisy_image, median_filtered)
+
+# Display results
+print(f"NSR for Averaging Filter: {nsr_average:.4f}")
+print(f"NSR for Gaussian Filter: {nsr_gaussian:.4f}")
+print(f"NSR for Median Filter: {nsr_median:.4f}")
+
+# Display the images with the NSR metric
+plt.figure(figsize=(10, 8))
+
+# Noisy Image
+plt.subplot(3, 2, 1)
+plt.title('Noisy Image')
+plt.imshow(noisy_image, cmap='gray')
+
+# Averaging Filter
+plt.subplot(3, 2, 2)
+plt.title(f'Averaging Filter (NSR={nsr_average:.4f})')
+plt.imshow(average_filtered, cmap='gray')
+
+# Gaussian Filter
+plt.subplot(3, 2, 3)
+plt.title(f'Gaussian Filter (NSR={nsr_gaussian:.4f})')
+plt.imshow(gaussian_filtered, cmap='gray')
+
+# Median Filter
+plt.subplot(3, 2, 4)
+plt.title(f'Median Filter (NSR={nsr_median:.4f})')
+plt.imshow(median_filtered, cmap='gray')
+
+plt.tight_layout()
+plt.show()
+
